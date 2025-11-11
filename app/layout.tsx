@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "N-Device Session Manager",
-  description: "Next.js, Auth0, and Vercel KV",
+  description: "Next.js, Auth0, and Supabase",
 };
 
 export default function RootLayout({
