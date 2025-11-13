@@ -1,20 +1,33 @@
-import { getSession } from "@auth0/nextjs-auth0";
 import { NextResponse, type NextRequest } from "next/server";
 
 export default async function middleware(req: NextRequest) {
   const res = NextResponse.next();
-  // The `types/auth0.d.ts` file automatically types this `session` object
-  const session = await getSession(req, res as unknown as Response);
 
-  if (!session || !session.user) {
-    return res;
+  // Ask our server-side endpoint for session flags. We forward cookies so
+  // the server can read the Auth0 session.
+  const cookie = req.headers.get("cookie") || "";
+  const origin = req.nextUrl.origin;
+
+  let flags = { needsProfileCompletion: false, needsDeviceManagement: false };
+
+  try {
+    const flagsRes = await fetch(`${origin}/api/session-flags`, {
+      headers: { cookie },
+      cache: "no-store",
+    });
+
+    if (flagsRes.ok) {
+      flags = await flagsRes.json();
+    }
+  } catch (err) {
+    console.error("middleware: failed to fetch session flags:", err);
   }
 
   const { pathname } = req.nextUrl;
 
   // 1. Check for Profile Completion
   if (
-    session.needsProfileCompletion &&
+    flags.needsProfileCompletion &&
     pathname !== "/complete-profile" &&
     !pathname.startsWith("/api")
   ) {
@@ -24,7 +37,7 @@ export default async function middleware(req: NextRequest) {
 
   // 2. Check for Device Management
   if (
-    session.needsDeviceManagement &&
+    flags.needsDeviceManagement &&
     pathname !== "/manage-devices" &&
     !pathname.startsWith("/api")
   ) {
@@ -33,11 +46,11 @@ export default async function middleware(req: NextRequest) {
   }
   
   // 3. Prevent access to special pages if not needed
-  if (!session.needsProfileCompletion && pathname === "/complete-profile") {
+  if (!flags.needsProfileCompletion && pathname === "/complete-profile") {
     return NextResponse.redirect(new URL("/private", req.url));
   }
   
-  if (!session.needsDeviceManagement && pathname === "/manage-devices") {
+  if (!flags.needsDeviceManagement && pathname === "/manage-devices") {
     return NextResponse.redirect(new URL("/private", req.url));
   }
 

@@ -1,9 +1,4 @@
-import {
-  handleAuth,
-  handleCallback,
-  CallbackOptions,
-  Session, // <-- Import the Session type
-} from "@auth0/nextjs-auth0";
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
 import { NextRequest } from "next/server"; // <-- Import NextRequest
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { randomUUID } from "crypto";
@@ -44,7 +39,7 @@ if (missingEnvVars.length > 0) {
 
 const afterCallback = async (
   req: NextRequest, // <-- Explicitly type `req`
-  session: Session,   // <-- Explicitly type `session`
+  session: any,
   state: Record<string, unknown>
 ) => {
   const { user } = session;
@@ -129,15 +124,52 @@ const afterCallback = async (
   return session; // <-- We correctly return the modified session
 };
 
-// Create the Auth0 handlers - this must be done at module level
-// to ensure environment variables are available
-const authHandlers = handleAuth({
-  callback: handleCallback({
-    // We pass our correctly typed function here
-    afterCallback: afterCallback as unknown as CallbackOptions["afterCallback"],
-  }),
+// Create an Auth0 client instance. We map env vars used in this project
+// to the options expected by the SDK.
+const domain =
+  process.env.AUTH0_DOMAIN ||
+  (process.env.AUTH0_ISSUER_BASE_URL || "").replace(/^https?:\/\//, "").replace(/\/$/, "") ||
+  undefined;
+
+const auth0 = new Auth0Client({
+  domain,
+  clientId: process.env.AUTH0_CLIENT_ID,
+  clientSecret: process.env.AUTH0_CLIENT_SECRET,
+  appBaseUrl: process.env.AUTH0_BASE_URL,
+  secret: process.env.AUTH0_SECRET,
+  routes: {
+    login: "/api/auth/login",
+    logout: "/api/auth/logout",
+    callback: "/api/auth/callback",
+    accessToken: "/api/auth/access-token",
+  } as any,
+  onCallback: undefined,
 });
 
-// Export the handlers - handleAuth returns a function that handles all routes
-export const GET = authHandlers;
-export const POST = authHandlers;
+async function handleAuthRoute(req: NextRequest) {
+  // Let the SDK process the request (login/logout/callback/profile/...)
+  const res = await auth0.middleware(req as any);
+
+  // If this was the callback route, run our afterCallback hook and persist any changes
+  try {
+    const pathname = req.nextUrl.pathname;
+    if (pathname.endsWith("/api/auth/callback") || pathname.endsWith("/auth/callback")) {
+      // Use the app-router form of getSession() which reads cookies server-side
+      const session = await auth0.getSession();
+      if (session) {
+        const updated = await afterCallback(req, session as any, {});
+        if (updated && updated !== session) {
+          // Persist updated session back to cookies using app-router updateSession(session)
+          await auth0.updateSession(updated as any);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("afterCallback error:", err);
+  }
+
+  return res;
+}
+
+export const GET = handleAuthRoute;
+export const POST = handleAuthRoute;

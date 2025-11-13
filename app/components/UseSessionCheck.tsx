@@ -1,4 +1,6 @@
 'use client';
+export { useSessionCheck } from './UseSessionCheck';
+'use client';
 import { useState, useEffect, useRef } from 'react';
 
 const POLLING_INTERVAL = 10000; // Check every 10 seconds

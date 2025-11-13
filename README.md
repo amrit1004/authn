@@ -2,15 +2,6 @@
 
 A professional Next.js application with Auth0 authentication and Supabase backend that implements N-device concurrent session management (N=3).
 
-## Features
-
-- ✅ **Multi-Device Authentication**: Users can be logged in on up to 3 devices simultaneously
-- ✅ **Device Management**: When the limit is reached, users can choose to force logout one of their active devices
-- ✅ **Graceful Force Logout**: Devices that are force logged out receive a clear notification
-- ✅ **Profile Management**: Collect and display user's full name and phone number
-- ✅ **Professional UI**: Modern, polished interface with smooth animations and gradients
-- ✅ **Session Monitoring**: Automatic polling to detect force logout events
-
 ## Tech Stack
 
 - **Next.js 15** - React framework

@@ -1,9 +1,9 @@
-import { getSession, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import { getSession, withApiAuthRequired } from "@/app/lib/auth0Client";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { NextResponse } from "next/server";
 
-export const POST = withApiAuthRequired(async (req) => {
-  const session = await getSession(req, new NextResponse());
+export const POST = withApiAuthRequired(async (req: Request) => {
+  const session = await getSession(req as any, new NextResponse());
   
   if (!session || !session.user) {
     return NextResponse.json(
@@ -71,8 +71,15 @@ export const POST = withApiAuthRequired(async (req) => {
       }
     }
 
-    // Update session to remove needsProfileCompletion flag
-    session.needsProfileCompletion = false;
+    // Update session to remove needsProfileCompletion flag and persist it
+    (session as any).needsProfileCompletion = false;
+    try {
+      // Persist the updated session back to cookies
+      const res = new NextResponse();
+      await (await import("@/app/lib/auth0Client")).updateSession(req as any, res as any, session as any);
+    } catch (err) {
+      console.error("Failed to persist updated session:", err);
+    }
 
     return NextResponse.json({ 
       success: true,

@@ -1,9 +1,9 @@
-import { getSession, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import { getSession, withApiAuthRequired } from "@/app/lib/auth0Client";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { NextResponse } from "next/server";
 
-export const POST = withApiAuthRequired(async (req) => {
-  const session = await getSession(req, new NextResponse());
+export const POST = withApiAuthRequired(async (req: Request) => {
+  const session = await getSession(req as any, new NextResponse());
   
   if (!session || !session.user) {
     return NextResponse.json(
@@ -67,10 +67,16 @@ export const POST = withApiAuthRequired(async (req) => {
       throw insertError;
     }
 
-    // Update session to include deviceId and remove flags
-    session.deviceId = newDevice.device_id;
-    session.needsDeviceManagement = false;
-    session.newDeviceToAdd = null;
+    // Update session to include deviceId and remove flags, persist change
+    (session as any).deviceId = newDevice.device_id;
+    (session as any).needsDeviceManagement = false;
+    (session as any).newDeviceToAdd = null;
+    try {
+      const res = new NextResponse();
+      await (await import("@/app/lib/auth0Client")).updateSession(req as any, res as any, session as any);
+    } catch (err) {
+      console.error("Failed to persist updated session:", err);
+    }
 
     return NextResponse.json({ 
       success: true,

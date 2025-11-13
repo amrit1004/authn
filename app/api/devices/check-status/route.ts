@@ -1,12 +1,12 @@
-import { getSession, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import { getSession, withApiAuthRequired } from "@/app/lib/auth0Client";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { NextResponse } from "next/server";
 
-export const GET = withApiAuthRequired(async (req) => {
-  const session = await getSession(req, new NextResponse());
+export const GET = withApiAuthRequired(async (req: Request) => {
+  const session = await getSession(req as any, new NextResponse());
   
   // This deviceId was stored in the session cookie during login
-  const { deviceId } = session;
+  const { deviceId } = (session as any) || {};
 
   if (!deviceId) {
     // If there's no deviceId in the session, they aren't active.

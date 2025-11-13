@@ -1,5 +1,5 @@
 'use client';
-import { useSessionCheck } from './useSessionCheck';
+import { useSessionCheck } from './UseSessionCheck';
 import ForceLogoutModal from './ForceLogoutModal';
 
 export default function ClientWrapper({ children }: { children: React.ReactNode }) {

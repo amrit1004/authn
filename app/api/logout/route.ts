@@ -1,4 +1,4 @@
-import { getSession } from "@auth0/nextjs-auth0";
+import { getSession } from "@/app/lib/auth0Client";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { NextRequest, NextResponse } from "next/server";
 
