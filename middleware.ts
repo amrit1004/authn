@@ -1,13 +1,10 @@
-import {
-  withMiddlewareAuthRequired,
-  getSession,
-} from "@auth0/nextjs-auth0/edge";
-import { NextResponse } from "next/server";
+import { getSession } from "@auth0/nextjs-auth0";
+import { NextResponse, type NextRequest } from "next/server";
 
-export default withMiddlewareAuthRequired(async (req) => {
+export default async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   // The `types/auth0.d.ts` file automatically types this `session` object
-  const session = await getSession(req, res);
+  const session = await getSession(req, res as unknown as Response);
 
   if (!session || !session.user) {
     return res;
@@ -45,7 +42,7 @@ export default withMiddlewareAuthRequired(async (req) => {
   }
 
   return res;
-});
+}
 
 // The middleware will run on these routes
 export const config = {
