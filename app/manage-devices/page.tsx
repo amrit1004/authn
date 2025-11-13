@@ -88,29 +88,46 @@ export default function ManageDevices() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold text-center">Device Limit Reached</h1>
-      <p className="mt-2 text-center text-lg text-gray-400">
-        You are logged in on the maximum of **{process.env.NEXT_PUBLIC_MAX_CONCURRENT_DEVICES || 3}** devices. 
-        To log in here, please log out from one of your other active devices.
-      </p>
+    <div className="max-w-3xl mx-auto">
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-extrabold text-white sm:text-5xl mb-3">Device Limit Reached</h1>
+        <p className="text-lg text-gray-300 max-w-2xl mx-auto">
+          You are logged in on the maximum of <span className="font-semibold text-indigo-400">{process.env.NEXT_PUBLIC_MAX_CONCURRENT_DEVICES || 3}</span> devices.
+        </p>
+        <p className="mt-2 text-gray-400">
+          To log in here, please log out from one of your other active devices below.
+        </p>
+      </div>
       
       {error && (
-        <div className="my-4 p-3 bg-red-800 border border-red-600 text-red-100 rounded-md">
-          {error}
+        <div className="my-6 p-4 bg-red-900/30 border border-red-700 text-red-100 rounded-xl flex items-center gap-3">
+          <div className="flex-shrink-0">
+            <div className="h-6 w-6 rounded-full bg-red-600 flex items-center justify-center">
+              <span className="text-white text-sm font-bold">!</span>
+            </div>
+          </div>
+          <span>{error}</span>
         </div>
       )}
 
       {isLoading ? (
-        <p className="text-center mt-8">Loading active devices...</p>
+        <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-12 border border-gray-700 text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+          <p className="text-gray-300 text-lg">Loading active devices...</p>
+        </div>
       ) : (
         <div className="mt-10 space-y-4">
           {devices.map((device) => (
-            <div key={device.device_id} className="bg-gray-800 rounded-lg shadow-lg p-5 flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                {getDeviceIcon(device.user_agent)}
-                <div>
-                  <div className="font-semibold text-white">{parseUserAgent(device.user_agent)}</div>
+            <div 
+              key={device.device_id} 
+              className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-lg border border-gray-700 hover:border-indigo-500 transition-all duration-300 p-6 flex items-center justify-between"
+            >
+              <div className="flex items-center space-x-4 flex-1">
+                <div className="flex-shrink-0">
+                  {getDeviceIcon(device.user_agent)}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-white text-lg mb-1">{parseUserAgent(device.user_agent)}</div>
                   <div className="text-sm text-gray-400">
                     Logged in: {new Date(device.logged_in_at).toLocaleString()}
                   </div>
@@ -119,17 +136,27 @@ export default function ManageDevices() {
               <button
                 onClick={() => handleForceLogout(device.device_id)}
                 disabled={device.isLoading}
-                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+                className="ml-4 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95 shadow-lg"
               >
-                {device.isLoading ? 'Logging out...' : 'Log Out This Device'}
+                {device.isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                    Logging out...
+                  </span>
+                ) : (
+                  'Log Out This Device'
+                )}
               </button>
             </div>
           ))}
         </div>
       )}
 
-      <div className="mt-8 text-center">
-        <Link href="/api/auth/logout" className="text-gray-400 hover:text-white">
+      <div className="mt-10 text-center">
+        <Link 
+          href="/api/logout" 
+          className="inline-block px-6 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gray-800 border border-gray-700 transition-all"
+        >
           Cancel and Log Out
         </Link>
       </div>

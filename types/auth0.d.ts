@@ -1,5 +1,5 @@
 import '@auth0/nextjs-auth0';
-import { ActiveDevice } from '../app/lib/types'; // Import our new type
+import { ActiveDevice } from '../app/lib/type'; // Import our new type
 
 declare module '@auth0/nextjs-auth0' {
   interface Session {

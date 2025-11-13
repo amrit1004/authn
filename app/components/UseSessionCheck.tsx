@@ -1,44 +1,64 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
 
-const POLLING_INTERVAL = 10000; 
+const POLLING_INTERVAL = 10000; // Check every 10 seconds
 
 export function useSessionCheck() {
   const [isForceLoggedOut, setIsForceLoggedOut] = useState(false);
-  const router = useRouter();
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasLoggedOut = useRef(false);
 
   useEffect(() => {
+    // Prevent multiple logout attempts
+    if (hasLoggedOut.current) return;
+
     const checkStatus = async () => {
       try {
-        const res = await fetch('/api/devices/check-status');
+        const res = await fetch('/api/devices/check-status', {
+          credentials: 'include',
+        });
+        
         if (!res.ok) {
-          throw new Error('Session invalid');
+          // If unauthorized or forbidden, device was logged out
+          if (res.status === 401 || res.status === 403) {
+            setIsForceLoggedOut(true);
+            hasLoggedOut.current = true;
+            if (intervalRef.current) {
+              clearInterval(intervalRef.current);
+            }
+            return;
+          }
+          throw new Error('Session check failed');
         }
         
         const data = await res.json();
         
         if (!data.active) {
           setIsForceLoggedOut(true);
-          clearInterval(intervalId);
-          setTimeout(() => {
-            router.push('/api/auth/logout');
-          }, 3000);
+          hasLoggedOut.current = true;
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+          }
         }
       } catch (error) {
         console.error('Session check failed:', error);
-        setIsForceLoggedOut(true);
-        clearInterval(intervalId);
-        setTimeout(() => {
-          router.push('/api/auth/logout');
-        }, 3000);
+        // Only set force logout on network errors if we're sure the session is invalid
+        // Don't auto-logout on temporary network issues
       }
     };
 
+    // Initial check
     checkStatus();
-    const intervalId = setInterval(checkStatus, POLLING_INTERVAL);
-    return () => clearInterval(intervalId);
-  }, [router]);
+    
+    // Set up polling
+    intervalRef.current = setInterval(checkStatus, POLLING_INTERVAL);
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
   return { isForceLoggedOut };
 }

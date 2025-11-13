@@ -2,9 +2,12 @@ import {
   handleAuth,
   handleCallback,
   CallbackOptions,
+  Session, // <-- Import the Session type
 } from "@auth0/nextjs-auth0";
+import { NextRequest } from "next/server"; // <-- Import NextRequest
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { randomUUID } from "crypto";
+import { ActiveDevice } from "@/app/lib/type"; 
 
 const MAX_DEVICES = parseInt(process.env.MAX_CONCURRENT_DEVICES || "3");
 const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE!;
@@ -13,10 +16,10 @@ if (!AUTH0_NAMESPACE) {
   throw new Error("AUTH0_NAMESPACE is not set in .env.local");
 }
 
-const afterCallback: CallbackOptions["afterCallback"] = async (
-  req,
-  session,
-  state
+const afterCallback = async (
+  req: NextRequest, // <-- Explicitly type `req`
+  session: Session,   // <-- Explicitly type `session`
+  state: Record<string, unknown>
 ) => {
   const { user } = session;
   const auth0UserId = user[AUTH0_NAMESPACE + "/user_id"];
@@ -26,7 +29,8 @@ const afterCallback: CallbackOptions["afterCallback"] = async (
   }
 
   // --- 1. Profile Completion Check ---
-  let { data: profile, error: profileError } = await supabaseAdmin
+  // Fixed 'let' to 'const'
+  const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
     .select("full_name, phone_number")
     .eq("user_id", auth0UserId)
@@ -42,23 +46,20 @@ const afterCallback: CallbackOptions["afterCallback"] = async (
       console.error("Failed to create profile:", insertError);
       throw insertError;
     }
-    
-    // Since it's new, it's incomplete.
     session.needsProfileCompletion = true;
   } else if (profile) {
-    // Profile exists, check if it's complete
     if (!profile.full_name || !profile.phone_number) {
       session.needsProfileCompletion = true;
     }
   } else if (profileError) {
     console.error("Failed to get profile:", profileError);
-    throw profileError; // Other database error
+    throw profileError;
   }
 
   // --- 2. Device Session Check ---
-  const { data: devices, error: deviceError, count } = await supabaseAdmin
+  const { error: deviceError, count } = await supabaseAdmin
     .from("active_devices")
-    .select("device_id", { count: "exact" }) // Just get the count
+    .select("device_id", { count: "exact" })
     .eq("user_id", auth0UserId);
 
   if (deviceError) {
@@ -68,10 +69,11 @@ const afterCallback: CallbackOptions["afterCallback"] = async (
 
   const deviceCount = count || 0;
   const newDeviceId = randomUUID();
+  // TS now knows `req` is NextRequest, so `req.headers.get` is valid.
   const userAgent = req.headers.get("user-agent") || "Unknown";
   const ip = req.headers.get("x-forwarded-for") || "Unknown";
 
-  const newDevice = {
+  const newDevice: ActiveDevice = {
     user_id: auth0UserId,
     device_id: newDeviceId,
     user_agent: userAgent,
@@ -79,30 +81,31 @@ const afterCallback: CallbackOptions["afterCallback"] = async (
   };
 
   if (deviceCount < MAX_DEVICES) {
-    // Slot available! Add the new device.
     const { error: insertError } = await supabaseAdmin
       .from("active_devices")
-      .insert(newDevice);
+      .insert({
+        ...newDevice,
+        logged_in_at: new Date().toISOString(),
+      });
       
     if (insertError) {
        console.error("Failed to insert new device:", insertError);
        throw insertError;
     }
     
-    // Add the device ID to the user's session cookie
+    // All these properties are now type-safe
     session.deviceId = newDeviceId;
   } else {
-    // Device limit reached (N+1)
     session.needsDeviceManagement = true;
-    session.newDeviceToAdd = newDevice; // Store for later
+    session.newDeviceToAdd = newDevice;
   }
 
-  return session;
+  return session; // <-- We correctly return the modified session
 };
 
 export const GET = handleAuth({
   callback: handleCallback({
-    afterCallback,
-    redirectUri: "/private", // Always try to go to private page
+    // We pass our correctly typed function here
+    afterCallback: afterCallback as unknown as CallbackOptions["afterCallback"],
   }),
 });

@@ -45,19 +45,26 @@ export default function CompleteProfile() {
 
   return (
     <div className="max-w-md mx-auto">
-      <h1 className="text-3xl font-bold text-center">Complete Your Profile</h1>
-      <p className="mt-2 text-center text-gray-400">
-        We need a few more details to get you started.
-      </p>
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-extrabold text-white mb-2">Complete Your Profile</h1>
+        <p className="text-gray-400 text-lg">
+          We need a few more details to get you started.
+        </p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-6 bg-gray-800 p-8 rounded-lg shadow-xl">
+      <form onSubmit={handleSubmit} className="mt-8 space-y-6 bg-gradient-to-br from-gray-800 to-gray-900 p-8 rounded-2xl shadow-2xl border border-gray-700">
         {error && (
-          <div className="p-3 bg-red-800 border border-red-600 text-red-100 rounded-md">
-            {error}
+          <div className="p-4 bg-red-900/30 border border-red-700 text-red-100 rounded-xl flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <div className="h-6 w-6 rounded-full bg-red-600 flex items-center justify-center">
+                <span className="text-white text-sm font-bold">!</span>
+              </div>
+            </div>
+            <span>{error}</span>
           </div>
         )}
         <div>
-          <label htmlFor="fullName" className="block text-sm font-medium text-gray-300">
+          <label htmlFor="fullName" className="block text-sm font-semibold text-gray-300 mb-2">
             Full Name
           </label>
           <div className="mt-1">
@@ -69,13 +76,14 @@ export default function CompleteProfile() {
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="appearance-none block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-700 text-white"
+              placeholder="Enter your full name"
+              className="appearance-none block w-full px-4 py-3 border border-gray-600 rounded-xl shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-700/50 text-white transition-all"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-300">
+          <label htmlFor="phoneNumber" className="block text-sm font-semibold text-gray-300 mb-2">
             Phone Number
           </label>
           <div className="mt-1">
@@ -87,18 +95,26 @@ export default function CompleteProfile() {
               required
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
-              className="appearance-none block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-700 text-white"
+              placeholder="Enter your phone number"
+              className="appearance-none block w-full px-4 py-3 border border-gray-600 rounded-xl shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-700/50 text-white transition-all"
             />
           </div>
         </div>
 
-        <div>
+        <div className="pt-4">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-lg text-base font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            {isSubmitting ? 'Saving...' : 'Save and Continue'}
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                <span>Saving...</span>
+              </>
+            ) : (
+              'Save and Continue'
+            )}
           </button>
         </div>
       </form>
