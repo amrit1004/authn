@@ -1,12 +1,14 @@
 'use client';
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import ClientWrapper from '../components/ClientWrapper';
-import { UserIcon, EnvelopeIcon, PhoneIcon, IdentificationIcon } from '@heroicons/react/24/outline';
+import { UserIcon, EnvelopeIcon, PhoneIcon, IdentificationIcon, Cog6ToothIcon, DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
 
 interface Profile {
-  full_name: string;
-  phone_number: string;
+  full_name: string | null;
+  phone_number: string | null;
 }
 
 export default function PrivatePage() {
@@ -14,6 +16,8 @@ export default function PrivatePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAutoLogoutMessage, setShowAutoLogoutMessage] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchProfile() {
@@ -21,6 +25,25 @@ export default function PrivatePage() {
       
       setIsLoading(true);
       try {
+        // Check for auto-logout message
+        const flagsRes = await fetch('/api/session-flags');
+        if (flagsRes.ok) {
+          const flags = await flagsRes.json();
+          if (flags.deviceAutoLoggedOut) {
+            setShowAutoLogoutMessage(true);
+            // Clear the flag after showing message (10 seconds)
+            setTimeout(async () => {
+              setShowAutoLogoutMessage(false);
+              // Clear the flag from session
+              try {
+                await fetch('/api/clear-auto-logout-flag', { method: 'POST' });
+              } catch (err) {
+                // Ignore errors
+              }
+            }, 10000);
+          }
+        }
+
         const res = await fetch('/api/user/profile');
         if (!res.ok) {
           throw new Error('Failed to fetch profile');
@@ -47,6 +70,22 @@ export default function PrivatePage() {
             Manage your account and view your profile information
           </p>
         </div>
+
+        {showAutoLogoutMessage && (
+          <div className="mb-6 p-4 bg-yellow-900/30 border border-yellow-700 text-yellow-100 rounded-xl flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <div className="h-6 w-6 rounded-full bg-yellow-600 flex items-center justify-center">
+                <span className="text-white text-sm font-bold">!</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">Device Limit Reached</p>
+              <p className="text-sm text-yellow-200">
+                You were logged in successfully. Your oldest device was automatically logged out to make room for this new device.
+              </p>
+            </div>
+          </div>
+        )}
 
         {isUserLoading || isLoading ? (
           <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-12 border border-gray-700 text-center">
@@ -75,7 +114,7 @@ export default function PrivatePage() {
                   <UserIcon className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">{profile.full_name}</h2>
+                  <h2 className="text-2xl font-bold text-white">{profile.full_name || user?.name || user?.email || 'User'}</h2>
                   <p className="text-indigo-100">Account Information</p>
                 </div>
               </div>
@@ -100,7 +139,9 @@ export default function PrivatePage() {
                     </div>
                     <dt className="text-sm font-medium text-gray-400 uppercase tracking-wide">Full Name</dt>
                   </div>
-                  <dd className="text-lg font-semibold text-white mt-2">{profile.full_name}</dd>
+                  <dd className="text-lg font-semibold text-white mt-2">
+                    {profile.full_name || <span className="text-gray-500 italic">Not set</span>}
+                  </dd>
                 </div>
               </div>
 
@@ -111,7 +152,29 @@ export default function PrivatePage() {
                   </div>
                   <dt className="text-sm font-medium text-gray-400 uppercase tracking-wide">Phone Number</dt>
                 </div>
-                <dd className="text-lg font-semibold text-white mt-2">{profile.phone_number}</dd>
+                <dd className="text-lg font-semibold text-white mt-2">
+                  {profile.phone_number || <span className="text-gray-500 italic">Not set</span>}
+                </dd>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-8 pt-6 border-t border-gray-700">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Link
+                  href="/manage-devices"
+                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 hover:border-indigo-500 hover:from-indigo-600/30 hover:to-purple-600/30 transition-all group"
+                >
+                  <DevicePhoneMobileIcon className="h-6 w-6 text-indigo-400 group-hover:text-indigo-300" />
+                  <span className="text-white font-semibold">Manage Devices</span>
+                </Link>
+                <Link
+                  href="/complete-profile"
+                  className="flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 hover:border-purple-500 hover:from-purple-600/30 hover:to-pink-600/30 transition-all group"
+                >
+                  <Cog6ToothIcon className="h-6 w-6 text-purple-400 group-hover:text-purple-300" />
+                  <span className="text-white font-semibold">Edit Profile</span>
+                </Link>
               </div>
             </div>
           </div>

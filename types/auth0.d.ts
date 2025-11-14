@@ -7,5 +7,6 @@ declare module '@auth0/nextjs-auth0' {
     needsProfileCompletion?: boolean;
     needsDeviceManagement?: boolean;
     newDeviceToAdd?: ActiveDevice | null;
+    deviceAutoLoggedOut?: boolean;
   }
 }

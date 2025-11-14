@@ -30,6 +30,7 @@ export default function ForceLogoutModal({ isOpen }: { isOpen: boolean }) {
     <Transition show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={() => {}}>
         <Transition
+          show={isOpen}
           as={Fragment}
           enter="ease-out duration-300"
           enterFrom="opacity-0"
@@ -44,6 +45,7 @@ export default function ForceLogoutModal({ isOpen }: { isOpen: boolean }) {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4 text-center">
             <Transition
+              show={isOpen}
               as={Fragment}
               enter="ease-out duration-300"
               enterFrom="opacity-0 scale-95"
@@ -64,10 +66,11 @@ export default function ForceLogoutModal({ isOpen }: { isOpen: boolean }) {
                       </Dialog.Title>
                       <div className="mt-4 space-y-3">
                         <p className="text-base text-gray-300 leading-relaxed">
-                          You have been logged out because this account was logged in on another device.
+                          You have been logged out because this account exceeded the device limit.
                         </p>
                         <p className="text-sm text-gray-400">
-                          For security reasons, we limit concurrent sessions to {process.env.NEXT_PUBLIC_MAX_CONCURRENT_DEVICES || 3} devices.
+                          For security reasons, we limit concurrent sessions to {process.env.NEXT_PUBLIC_MAX_CONCURRENT_DEVICES || 3} devices. 
+                          You or someone else logged in from a new device, and this device was removed to make room.
                         </p>
                         <div className="mt-6 pt-4 border-t border-gray-700">
                           <p className="text-sm text-gray-400 flex items-center justify-center gap-2">

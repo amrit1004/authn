@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { NextResponse } from "next/server";
 
 export const POST = withApiAuthRequired(async (req: Request) => {
-  const session = await getSession(req as any, new NextResponse());
+  const session = await getSession();
   
   if (!session || !session.user) {
     return NextResponse.json(
@@ -12,12 +12,17 @@ export const POST = withApiAuthRequired(async (req: Request) => {
     );
   }
 
-  const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE!;
-  const auth0UserId = session.user[AUTH0_NAMESPACE + "/user_id"];
+  const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE || "";
+  // Try multiple possible user ID claim formats
+  const auth0UserId = 
+    (session as any).user?.[AUTH0_NAMESPACE + "/user_id"] ||
+    (session as any).user?.user_id ||
+    (session as any).user?.sub ||
+    (session as any).user?.id;
 
   if (!auth0UserId) {
     return NextResponse.json(
-      { message: "User ID not found" },
+      { message: "User ID not found in session" },
       { status: 400 }
     );
   }
@@ -33,14 +38,9 @@ export const POST = withApiAuthRequired(async (req: Request) => {
       );
     }
 
-    // Get the new device info from session
-    const newDevice = session.newDeviceToAdd;
-    if (!newDevice) {
-      return NextResponse.json(
-        { message: "No new device to add" },
-        { status: 400 }
-      );
-    }
+    // Get the new device info from session (if exists - during login with device limit)
+    const newDevice = (session as any).newDeviceToAdd;
+    const isSwap = !!newDevice;
 
     // Delete the old device
     const { error: deleteError } = await supabaseAdmin
@@ -54,34 +54,43 @@ export const POST = withApiAuthRequired(async (req: Request) => {
       throw deleteError;
     }
 
-    // Insert the new device
-    const { error: insertError } = await supabaseAdmin
-      .from("active_devices")
-      .insert({
-        ...newDevice,
-        logged_in_at: new Date().toISOString(),
+    // If there's a new device to add (swap scenario during login), add it
+    if (isSwap && newDevice) {
+      const { error: insertError } = await supabaseAdmin
+        .from("active_devices")
+        .insert({
+          ...newDevice,
+          logged_in_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        console.error("Failed to insert new device:", insertError);
+        throw insertError;
+      }
+
+      // Update session to include deviceId and remove flags
+      (session as any).deviceId = newDevice.device_id;
+      (session as any).needsDeviceManagement = false;
+      (session as any).newDeviceToAdd = null;
+      
+      try {
+        const res = new NextResponse();
+        await (await import("@/app/lib/auth0Client")).updateSession(req as any, res as any, session as any);
+      } catch (err) {
+        console.error("Failed to persist updated session:", err);
+      }
+
+      return NextResponse.json({ 
+        success: true,
+        message: "Device swapped successfully" 
       });
-
-    if (insertError) {
-      console.error("Failed to insert new device:", insertError);
-      throw insertError;
+    } else {
+      // Simple logout - just deleted the device, no new device to add
+      return NextResponse.json({ 
+        success: true,
+        message: "Device logged out successfully" 
+      });
     }
-
-    // Update session to include deviceId and remove flags, persist change
-    (session as any).deviceId = newDevice.device_id;
-    (session as any).needsDeviceManagement = false;
-    (session as any).newDeviceToAdd = null;
-    try {
-      const res = new NextResponse();
-      await (await import("@/app/lib/auth0Client")).updateSession(req as any, res as any, session as any);
-    } catch (err) {
-      console.error("Failed to persist updated session:", err);
-    }
-
-    return NextResponse.json({ 
-      success: true,
-      message: "Device swapped successfully" 
-    });
 
   } catch (error: any) {
     console.error("Error in devices/swap:", error);

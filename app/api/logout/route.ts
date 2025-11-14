@@ -5,11 +5,9 @@ import { NextRequest, NextResponse } from "next/server";
 const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE!;
 
 export async function GET(req: NextRequest) {
-  const res = new NextResponse();
-  
   try {
     // Get session before logout
-    const session = await getSession(req, res);
+    const session = await getSession();
     
     // Clean up device from active_devices if session exists
     if (session?.deviceId && session?.user) {

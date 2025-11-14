@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { NextResponse } from "next/server";
 
 export const POST = withApiAuthRequired(async (req: Request) => {
-  const session = await getSession(req as any, new NextResponse());
+  const session = await getSession();
   
   if (!session || !session.user) {
     return NextResponse.json(
@@ -12,8 +12,13 @@ export const POST = withApiAuthRequired(async (req: Request) => {
     );
   }
 
-  const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE!;
-  const auth0UserId = session.user[AUTH0_NAMESPACE + "/user_id"];
+  const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE || "";
+  // Try multiple possible user ID claim formats
+  const auth0UserId = 
+    (session as any).user?.[AUTH0_NAMESPACE + "/user_id"] ||
+    (session as any).user?.user_id ||
+    (session as any).user?.sub ||
+    (session as any).user?.id;
 
   if (!auth0UserId) {
     return NextResponse.json(

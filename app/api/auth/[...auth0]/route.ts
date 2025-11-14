@@ -43,10 +43,24 @@ const afterCallback = async (
   state: Record<string, unknown>
 ) => {
   const { user } = session;
-  const auth0UserId = user[AUTH0_NAMESPACE + "/user_id"];
+  // Prefer the namespaced user id (if you added it via an Auth0 Action),
+  // but fall back to available claims like `user_id` or `sub` so login still works.
+  const auth0UserId =
+    user?.[AUTH0_NAMESPACE + "/user_id"] || user?.user_id || user?.sub || user?.id;
 
   if (!auth0UserId) {
-    throw new Error("Auth0 user ID not found in session. Check Auth0 Action.");
+    // Debug: log the session server-side to inspect available claims during callback.
+    // This is safe server-side but avoid logging in production with sensitive data.
+    console.error("afterCallback: session missing expected user id claims:", {
+      user:
+        typeof user === "object"
+          ? // redact some keys if present
+            {
+              keys: Object.keys(user),
+            }
+          : user,
+    });
+    throw new Error("Auth0 user ID not found in session. Check Auth0 Action or inspect session keys (see server logs).");
   }
 
   // --- 1. Profile Completion Check ---
@@ -101,7 +115,11 @@ const afterCallback = async (
     ip: ip,
   };
 
+  console.log(`Device limit check: deviceCount=${deviceCount}, MAX_DEVICES=${MAX_DEVICES}`);
+
+  // Only add device if user has fewer than MAX_DEVICES active devices
   if (deviceCount < MAX_DEVICES) {
+    console.log(`Adding new device. Current count: ${deviceCount}, limit: ${MAX_DEVICES}`);
     const { error: insertError } = await supabaseAdmin
       .from("active_devices")
       .insert({
@@ -116,9 +134,14 @@ const afterCallback = async (
     
     // All these properties are now type-safe
     session.deviceId = newDeviceId;
+    console.log(`Device added successfully. deviceId: ${newDeviceId}`);
   } else {
+    // User has reached the device limit - redirect to manage-devices page
+    // User can choose which device to logout from the list
+    console.log(`Device limit reached (${deviceCount} >= ${MAX_DEVICES}). Redirecting to device management.`);
     session.needsDeviceManagement = true;
     session.newDeviceToAdd = newDevice;
+    // IMPORTANT: Do NOT add deviceId to session - user must manage devices first
   }
 
   return session; // <-- We correctly return the modified session
@@ -154,13 +177,16 @@ async function handleAuthRoute(req: NextRequest) {
   try {
     const pathname = req.nextUrl.pathname;
     if (pathname.endsWith("/api/auth/callback") || pathname.endsWith("/auth/callback")) {
-      // Use the app-router form of getSession() which reads cookies server-side
+      // Read the session - use getSession() without parameters to read from request cookies
       const session = await auth0.getSession();
       if (session) {
         const updated = await afterCallback(req, session as any, {});
-        if (updated && updated !== session) {
-          // Persist updated session back to cookies using app-router updateSession(session)
-          await auth0.updateSession(updated as any);
+        // Always update the session if afterCallback returned something
+        // This ensures flags like needsDeviceManagement are persisted
+        if (updated) {
+          // Persist updated session back to cookies on the response from middleware
+          // The response from middleware already has the session cookies, we just need to update them
+          await auth0.updateSession(req as any, res as any, updated as any);
         }
       }
     }

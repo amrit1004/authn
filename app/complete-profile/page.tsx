@@ -1,13 +1,37 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default function CompleteProfile() {
+  const { user, isLoading: isUserLoading } = useUser();
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+
+  // Load existing profile data
+  useEffect(() => {
+    async function loadProfile() {
+      if (isUserLoading || !user) return;
+      
+      try {
+        const res = await fetch('/api/user/profile');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.full_name) setFullName(data.full_name);
+          if (data.phone_number) setPhoneNumber(data.phone_number);
+        }
+      } catch (err) {
+        // Ignore errors - form will be empty
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadProfile();
+  }, [user, isUserLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +58,11 @@ export default function CompleteProfile() {
         throw new Error(data.message || 'Failed to update profile');
       }
 
-      // Success! Redirect to the private page.
-      router.push('/private');
+      // Success! Redirect to the private page after a short delay
+      setTimeout(() => {
+        router.push('/private');
+        router.refresh(); // Refresh to update session flags
+      }, 500);
 
     } catch (err: any) {
       setError(err.message);

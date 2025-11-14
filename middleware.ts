@@ -45,14 +45,9 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/manage-devices", req.url));
   }
   
-  // 3. Prevent access to special pages if not needed
-  if (!flags.needsProfileCompletion && pathname === "/complete-profile") {
-    return NextResponse.redirect(new URL("/private", req.url));
-  }
-  
-  if (!flags.needsDeviceManagement && pathname === "/manage-devices") {
-    return NextResponse.redirect(new URL("/private", req.url));
-  }
+  // 3. Allow manual access to special pages (users can navigate to them via links)
+  // Only redirect if they're trying to access /private when they need to complete something
+  // But allow direct access to /manage-devices and /complete-profile
 
   return res;
 }

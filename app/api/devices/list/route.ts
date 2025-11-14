@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { NextResponse } from "next/server";
 
 export const GET = withApiAuthRequired(async (req: Request) => {
-  const session = await getSession(req as any, new NextResponse());
+  const session = await getSession();
   
   if (!session || !session.user) {
     return NextResponse.json(
@@ -12,12 +12,27 @@ export const GET = withApiAuthRequired(async (req: Request) => {
     );
   }
 
-  const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE!;
-  const auth0UserId = (session as any).user?.[AUTH0_NAMESPACE + "/user_id"];
+  const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE || "";
+  // Try multiple possible user ID claim formats
+  const auth0UserId = 
+    (session as any).user?.[AUTH0_NAMESPACE + "/user_id"] ||
+    (session as any).user?.user_id ||
+    (session as any).user?.sub ||
+    (session as any).user?.id;
 
   if (!auth0UserId) {
+    // Log available user keys for debugging
+    const userKeys = session.user && typeof session.user === 'object' 
+      ? Object.keys(session.user) 
+      : [];
+    console.error("User ID not found in session. Available user keys:", userKeys);
+    console.error("AUTH0_NAMESPACE:", AUTH0_NAMESPACE);
     return NextResponse.json(
-      { message: "User ID not found" },
+      { 
+        message: "User ID not found in session",
+        availableKeys: userKeys,
+        namespace: AUTH0_NAMESPACE
+      },
       { status: 400 }
     );
   }
@@ -34,7 +49,13 @@ export const GET = withApiAuthRequired(async (req: Request) => {
       throw error;
     }
 
-    return NextResponse.json({ devices: devices || [] });
+    // Get current deviceId from session
+    const currentDeviceId = (session as any).deviceId || null;
+
+    return NextResponse.json({ 
+      devices: devices || [],
+      currentDeviceId: currentDeviceId
+    });
 
   } catch (error: any) {
     console.error("Error in devices/list:", error);
