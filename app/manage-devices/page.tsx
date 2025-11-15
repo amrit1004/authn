@@ -23,7 +23,6 @@ export default function ManageDevices() {
   useEffect(() => {
     async function fetchDevices() {
       try {
-        // Check if user was redirected here due to device limit
         const flagsRes = await fetch('/api/session-flags');
         if (flagsRes.ok) {
           const flags = await flagsRes.json();
@@ -72,7 +71,13 @@ export default function ManageDevices() {
 
       const data = await res.json();
       
-      // Refresh the device list to show updated devices
+      const isCurrentDevice = deviceIdToLogout === currentDeviceId;
+      
+      if (isCurrentDevice) {
+        window.location.href = '/api/logout';
+        return;
+      }
+
       const refreshRes = await fetch('/api/devices/list');
       if (refreshRes.ok) {
         const refreshData = await refreshRes.json();
@@ -80,8 +85,6 @@ export default function ManageDevices() {
         setCurrentDeviceId(refreshData.currentDeviceId || null);
       }
 
-      // If this was a swap (during login), redirect to private page
-      // Otherwise, just refresh the list and stay on manage-devices page
       if (data.message?.includes('swapped')) {
         router.push('/private');
       }
@@ -108,7 +111,6 @@ export default function ManageDevices() {
     try {
       const ua = userAgent.toLowerCase();
 
-      // Browser detection (order matters)
       let browser = 'Unknown Browser';
       if (ua.includes('edg/') || ua.includes('edgios') || ua.includes('edga') || ua.includes('edgium')) browser = 'Microsoft Edge';
       else if (ua.includes('opr/') || ua.includes('opera/')) browser = 'Opera';
@@ -118,7 +120,6 @@ export default function ManageDevices() {
       else if (ua.includes('brave')) browser = 'Brave';
       else if (ua.includes('samsungbrowser/')) browser = 'Samsung Internet';
 
-      // OS detection to provide more helpful device labels
       let os = '';
       if (ua.includes('windows nt') || ua.includes('windows')) os = 'Windows';
       else if (ua.includes('macintosh') || ua.includes('mac os x')) os = 'macOS';
@@ -128,7 +129,6 @@ export default function ManageDevices() {
 
       if (os) return `${browser} on ${os}`;
 
-      // Fallback: try to extract a token like 'Mozilla' or other name
       const match = userAgent.match(/([A-Za-z]+)\//);
       if (match && match[1]) {
         return match[1].charAt(0).toUpperCase() + match[1].slice(1);
@@ -140,8 +140,8 @@ export default function ManageDevices() {
     }
   }
 
-  const deviceCount = devices.length;
   const maxDevices = parseInt(process.env.NEXT_PUBLIC_MAX_CONCURRENT_DEVICES || '3');
+  const deviceCount = devices.length;
   const isAtLimit = deviceCount >= maxDevices;
 
   return (
@@ -213,53 +213,43 @@ export default function ManageDevices() {
             devices.map((device) => {
               const isCurrentDevice = device.device_id === currentDeviceId;
               return (
-                <div 
-                  key={device.device_id} 
-                  className={`bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-lg border transition-all duration-300 p-6 flex items-center justify-between ${
-                    isCurrentDevice 
-                      ? 'border-indigo-500 ring-2 ring-indigo-500/50' 
-                      : 'border-gray-700 hover:border-indigo-500'
-                  }`}
-                >
-                  <div className="flex items-center space-x-4 flex-1">
-                    <div className="flex-shrink-0">
-                      {getDeviceIcon(device.user_agent)}
+              <div 
+                key={device.device_id} 
+                className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-lg border border-gray-700 hover:border-indigo-500 transition-all duration-300 p-6 flex items-center justify-between"
+              >
+                <div className="flex items-center space-x-4 flex-1">
+                  <div className="flex-shrink-0">
+                    {getDeviceIcon(device.user_agent)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-white text-lg">{parseUserAgent(device.user_agent)}</span>
+                      {isCurrentDevice && (
+                        <span className="px-2 py-1 text-xs font-semibold text-indigo-300 bg-indigo-500/20 border border-indigo-500/30 rounded-full">
+                          (This Device)
+                        </span>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-white text-lg">{parseUserAgent(device.user_agent)}</span>
-                        {isCurrentDevice && (
-                          <span className="px-2 py-1 text-xs font-semibold text-indigo-300 bg-indigo-500/20 border border-indigo-500/30 rounded-full">
-                            (This Device)
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-400">
-                        Logged in: {new Date(device.logged_in_at).toLocaleString()}
-                      </div>
+                    <div className="text-sm text-gray-400">
+                      Logged in: {new Date(device.logged_in_at).toLocaleString()}
                     </div>
                   </div>
-                  {isCurrentDevice ? (
-                    <div className="ml-4 px-6 py-3 rounded-xl text-sm font-semibold text-gray-400 bg-gray-700/50 border border-gray-600 cursor-not-allowed">
-                      Current Device
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleForceLogout(device.device_id)}
-                      disabled={device.isLoading}
-                      className="ml-4 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95 shadow-lg"
-                    >
-                      {device.isLoading ? (
-                        <span className="flex items-center gap-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                          Logging out...
-                        </span>
-                      ) : (
-                        'Log Out This Device'
-                      )}
-                    </button>
-                  )}
                 </div>
+                <button
+                  onClick={() => handleForceLogout(device.device_id)}
+                  disabled={device.isLoading}
+                  className="ml-4 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95 shadow-lg"
+                >
+                  {device.isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                      Logging out...
+                    </span>
+                  ) : (
+                    'Log Out This Device'
+                  )}
+                </button>
+              </div>
               );
             })
           )}

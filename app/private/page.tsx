@@ -25,20 +25,20 @@ export default function PrivatePage() {
       
       setIsLoading(true);
       try {
-        // Check for auto-logout message
         const flagsRes = await fetch('/api/session-flags');
         if (flagsRes.ok) {
           const flags = await flagsRes.json();
+          if (flags.needsDeviceManagement) {
+            router.push('/manage-devices');
+            return;
+          }
           if (flags.deviceAutoLoggedOut) {
             setShowAutoLogoutMessage(true);
-            // Clear the flag after showing message (10 seconds)
             setTimeout(async () => {
               setShowAutoLogoutMessage(false);
-              // Clear the flag from session
               try {
                 await fetch('/api/clear-auto-logout-flag', { method: 'POST' });
               } catch (err) {
-                // Ignore errors
               }
             }, 10000);
           }

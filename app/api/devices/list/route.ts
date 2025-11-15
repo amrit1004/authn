@@ -13,7 +13,6 @@ export const GET = withApiAuthRequired(async (req: Request) => {
   }
 
   const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE || "";
-  // Try multiple possible user ID claim formats
   const auth0UserId = 
     (session as any).user?.[AUTH0_NAMESPACE + "/user_id"] ||
     (session as any).user?.user_id ||
@@ -21,7 +20,6 @@ export const GET = withApiAuthRequired(async (req: Request) => {
     (session as any).user?.id;
 
   if (!auth0UserId) {
-    // Log available user keys for debugging
     const userKeys = session.user && typeof session.user === 'object' 
       ? Object.keys(session.user) 
       : [];
@@ -49,7 +47,6 @@ export const GET = withApiAuthRequired(async (req: Request) => {
       throw error;
     }
 
-    // Get current deviceId from session
     const currentDeviceId = (session as any).deviceId || null;
 
     return NextResponse.json({ 

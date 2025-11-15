@@ -13,7 +13,6 @@ export const POST = withApiAuthRequired(async (req: Request) => {
   }
 
   const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE || "";
-  // Try multiple possible user ID claim formats
   const auth0UserId = 
     (session as any).user?.[AUTH0_NAMESPACE + "/user_id"] ||
     (session as any).user?.user_id ||
@@ -38,7 +37,6 @@ export const POST = withApiAuthRequired(async (req: Request) => {
       );
     }
 
-    // Check if profile exists
     const { data: existingProfile } = await supabaseAdmin
       .from("profiles")
       .select("user_id")
@@ -46,7 +44,6 @@ export const POST = withApiAuthRequired(async (req: Request) => {
       .single();
 
     if (existingProfile) {
-      // Update existing profile
       const { error: updateError } = await supabaseAdmin
         .from("profiles")
         .update({
@@ -61,7 +58,6 @@ export const POST = withApiAuthRequired(async (req: Request) => {
         throw updateError;
       }
     } else {
-      // Create new profile
       const { error: insertError } = await supabaseAdmin
         .from("profiles")
         .insert({
@@ -76,10 +72,8 @@ export const POST = withApiAuthRequired(async (req: Request) => {
       }
     }
 
-    // Update session to remove needsProfileCompletion flag and persist it
     (session as any).needsProfileCompletion = false;
     try {
-      // Persist the updated session back to cookies
       const res = new NextResponse();
       await (await import("@/app/lib/auth0Client")).updateSession(req as any, res as any, session as any);
     } catch (err) {

@@ -13,7 +13,6 @@ export const POST = withApiAuthRequired(async (req: Request) => {
   }
 
   const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE || "";
-  // Try multiple possible user ID claim formats
   const auth0UserId = 
     (session as any).user?.[AUTH0_NAMESPACE + "/user_id"] ||
     (session as any).user?.user_id ||
@@ -38,11 +37,9 @@ export const POST = withApiAuthRequired(async (req: Request) => {
       );
     }
 
-    // Get the new device info from session (if exists - during login with device limit)
     const newDevice = (session as any).newDeviceToAdd;
     const isSwap = !!newDevice;
 
-    // Delete the old device
     const { error: deleteError } = await supabaseAdmin
       .from("active_devices")
       .delete()
@@ -54,7 +51,6 @@ export const POST = withApiAuthRequired(async (req: Request) => {
       throw deleteError;
     }
 
-    // If there's a new device to add (swap scenario during login), add it
     if (isSwap && newDevice) {
       const { error: insertError } = await supabaseAdmin
         .from("active_devices")
@@ -68,7 +64,6 @@ export const POST = withApiAuthRequired(async (req: Request) => {
         throw insertError;
       }
 
-      // Update session to include deviceId and remove flags
       (session as any).deviceId = newDevice.device_id;
       (session as any).needsDeviceManagement = false;
       (session as any).newDeviceToAdd = null;
@@ -85,7 +80,6 @@ export const POST = withApiAuthRequired(async (req: Request) => {
         message: "Device swapped successfully" 
       });
     } else {
-      // Simple logout - just deleted the device, no new device to add
       return NextResponse.json({ 
         success: true,
         message: "Device logged out successfully" 

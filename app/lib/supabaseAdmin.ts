@@ -7,7 +7,6 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase URL or Service Key');
 }
 
-// This is the backend-only admin client
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,

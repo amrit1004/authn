@@ -1,5 +1,5 @@
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
-import { NextRequest } from "next/server"; // <-- Import NextRequest
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { randomUUID } from "crypto";
 import { ActiveDevice } from "@/app/lib/type"; 
@@ -38,24 +38,19 @@ if (missingEnvVars.length > 0) {
 }
 
 const afterCallback = async (
-  req: NextRequest, // <-- Explicitly type `req`
+  req: NextRequest,
   session: any,
   state: Record<string, unknown>
 ) => {
   const { user } = session;
-  // Prefer the namespaced user id (if you added it via an Auth0 Action),
-  // but fall back to available claims like `user_id` or `sub` so login still works.
   const auth0UserId =
     user?.[AUTH0_NAMESPACE + "/user_id"] || user?.user_id || user?.sub || user?.id;
 
   if (!auth0UserId) {
-    // Debug: log the session server-side to inspect available claims during callback.
-    // This is safe server-side but avoid logging in production with sensitive data.
     console.error("afterCallback: session missing expected user id claims:", {
       user:
         typeof user === "object"
-          ? // redact some keys if present
-            {
+          ? {
               keys: Object.keys(user),
             }
           : user,
@@ -63,8 +58,6 @@ const afterCallback = async (
     throw new Error("Auth0 user ID not found in session. Check Auth0 Action or inspect session keys (see server logs).");
   }
 
-  // --- 1. Profile Completion Check ---
-  // Fixed 'let' to 'const'
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
     .select("full_name, phone_number")
@@ -72,7 +65,6 @@ const afterCallback = async (
     .single();
 
   if (profileError && profileError.code === "PGRST116") {
-    // Profile doesn't exist. Create it.
     const { error: insertError } = await supabaseAdmin
       .from("profiles")
       .insert({ user_id: auth0UserId });
@@ -91,10 +83,11 @@ const afterCallback = async (
     throw profileError;
   }
 
-  // --- 2. Device Session Check ---
-  const { error: deviceError, count } = await supabaseAdmin
+  const existingDeviceId = (session as any).deviceId;
+  
+  const { error: deviceError, data: existingDevices } = await supabaseAdmin
     .from("active_devices")
-    .select("device_id", { count: "exact" })
+    .select("device_id")
     .eq("user_id", auth0UserId);
 
   if (deviceError) {
@@ -102,9 +95,10 @@ const afterCallback = async (
     throw deviceError;
   }
 
-  const deviceCount = count || 0;
+  const deviceCount = existingDevices?.length || 0;
+  const isExistingDevice = existingDeviceId && existingDevices?.some((d: any) => d.device_id === existingDeviceId);
+  
   const newDeviceId = randomUUID();
-  // TS now knows `req` is NextRequest, so `req.headers.get` is valid.
   const userAgent = req.headers.get("user-agent") || "Unknown";
   const ip = req.headers.get("x-forwarded-for") || "Unknown";
 
@@ -115,11 +109,30 @@ const afterCallback = async (
     ip: ip,
   };
 
-  console.log(`Device limit check: deviceCount=${deviceCount}, MAX_DEVICES=${MAX_DEVICES}`);
-
-  // Only add device if user has fewer than MAX_DEVICES active devices
-  if (deviceCount < MAX_DEVICES) {
-    console.log(`Adding new device. Current count: ${deviceCount}, limit: ${MAX_DEVICES}`);
+  if (isExistingDevice) {
+    const { error: updateError } = await supabaseAdmin
+      .from("active_devices")
+      .update({
+        user_agent: userAgent,
+        ip: ip,
+        logged_in_at: new Date().toISOString(),
+      })
+      .eq("device_id", existingDeviceId)
+      .eq("user_id", auth0UserId);
+      
+    if (updateError) {
+      console.error("Failed to update existing device:", updateError);
+      throw updateError;
+    }
+    
+    session.deviceId = existingDeviceId;
+    delete (session as any).needsDeviceManagement;
+    delete (session as any).newDeviceToAdd;
+  } else if (deviceCount >= MAX_DEVICES) {
+    session.needsDeviceManagement = true;
+    session.newDeviceToAdd = newDevice;
+    delete (session as any).deviceId;
+  } else {
     const { error: insertError } = await supabaseAdmin
       .from("active_devices")
       .insert({
@@ -132,23 +145,14 @@ const afterCallback = async (
        throw insertError;
     }
     
-    // All these properties are now type-safe
     session.deviceId = newDeviceId;
-    console.log(`Device added successfully. deviceId: ${newDeviceId}`);
-  } else {
-    // User has reached the device limit - redirect to manage-devices page
-    // User can choose which device to logout from the list
-    console.log(`Device limit reached (${deviceCount} >= ${MAX_DEVICES}). Redirecting to device management.`);
-    session.needsDeviceManagement = true;
-    session.newDeviceToAdd = newDevice;
-    // IMPORTANT: Do NOT add deviceId to session - user must manage devices first
+    delete (session as any).needsDeviceManagement;
+    delete (session as any).newDeviceToAdd;
   }
 
-  return session; // <-- We correctly return the modified session
+  return session;
 };
 
-// Create an Auth0 client instance. We map env vars used in this project
-// to the options expected by the SDK.
 const domain =
   process.env.AUTH0_DOMAIN ||
   (process.env.AUTH0_ISSUER_BASE_URL || "").replace(/^https?:\/\//, "").replace(/\/$/, "") ||
@@ -170,23 +174,21 @@ const auth0 = new Auth0Client({
 });
 
 async function handleAuthRoute(req: NextRequest) {
-  // Let the SDK process the request (login/logout/callback/profile/...)
   const res = await auth0.middleware(req as any);
 
-  // If this was the callback route, run our afterCallback hook and persist any changes
   try {
     const pathname = req.nextUrl.pathname;
     if (pathname.endsWith("/api/auth/callback") || pathname.endsWith("/auth/callback")) {
-      // Read the session - use getSession() without parameters to read from request cookies
       const session = await auth0.getSession();
       if (session) {
         const updated = await afterCallback(req, session as any, {});
-        // Always update the session if afterCallback returned something
-        // This ensures flags like needsDeviceManagement are persisted
         if (updated) {
-          // Persist updated session back to cookies on the response from middleware
-          // The response from middleware already has the session cookies, we just need to update them
           await auth0.updateSession(req as any, res as any, updated as any);
+          
+          if ((updated as any).needsDeviceManagement) {
+            const baseUrl = process.env.AUTH0_BASE_URL || req.nextUrl.origin;
+            return NextResponse.redirect(new URL("/manage-devices", baseUrl));
+          }
         }
       }
     }

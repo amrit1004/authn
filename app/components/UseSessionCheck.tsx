@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 
-const POLLING_INTERVAL = 10000; // Check every 10 seconds
+const POLLING_INTERVAL = 10000;
 
 export function useSessionCheck() {
   const [isForceLoggedOut, setIsForceLoggedOut] = useState(false);
@@ -9,7 +9,6 @@ export function useSessionCheck() {
   const hasLoggedOut = useRef(false);
 
   useEffect(() => {
-    // Prevent multiple logout attempts
     if (hasLoggedOut.current) return;
 
     const checkStatus = async () => {
@@ -19,7 +18,6 @@ export function useSessionCheck() {
         });
         
         if (!res.ok) {
-          // If unauthorized or forbidden, device was logged out
           if (res.status === 401 || res.status === 403) {
             setIsForceLoggedOut(true);
             hasLoggedOut.current = true;
@@ -42,15 +40,11 @@ export function useSessionCheck() {
         }
       } catch (error) {
         console.error('Session check failed:', error);
-        // Only set force logout on network errors if we're sure the session is invalid
-        // Don't auto-logout on temporary network issues
       }
     };
 
-    // Initial check
     checkStatus();
     
-    // Set up polling
     intervalRef.current = setInterval(checkStatus, POLLING_INTERVAL);
     
     return () => {

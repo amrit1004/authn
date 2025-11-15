@@ -13,7 +13,6 @@ export const GET = withApiAuthRequired(async (req: Request) => {
   }
 
   const AUTH0_NAMESPACE = process.env.AUTH0_NAMESPACE || "";
-  // Try multiple possible user ID claim formats
   const auth0UserId = 
     (session as any).user?.[AUTH0_NAMESPACE + "/user_id"] ||
     (session as any).user?.user_id ||
@@ -21,7 +20,6 @@ export const GET = withApiAuthRequired(async (req: Request) => {
     (session as any).user?.id;
 
   if (!auth0UserId) {
-    // Log available user keys for debugging
     const userKeys = session.user && typeof session.user === 'object' 
       ? Object.keys(session.user) 
       : [];
@@ -46,7 +44,6 @@ export const GET = withApiAuthRequired(async (req: Request) => {
 
     if (error) {
       if (error.code === "PGRST116") {
-        // Profile doesn't exist - return empty profile
         return NextResponse.json({
           full_name: null,
           phone_number: null
@@ -56,7 +53,6 @@ export const GET = withApiAuthRequired(async (req: Request) => {
       throw error;
     }
 
-    // Return profile with null handling
     return NextResponse.json({
       full_name: profile?.full_name || null,
       phone_number: profile?.phone_number || null

@@ -12,7 +12,6 @@ export default function CompleteProfile() {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // Load existing profile data
   useEffect(() => {
     async function loadProfile() {
       if (isUserLoading || !user) return;
@@ -25,7 +24,6 @@ export default function CompleteProfile() {
           if (data.phone_number) setPhoneNumber(data.phone_number);
         }
       } catch (err) {
-        // Ignore errors - form will be empty
       } finally {
         setIsLoading(false);
       }
@@ -58,10 +56,9 @@ export default function CompleteProfile() {
         throw new Error(data.message || 'Failed to update profile');
       }
 
-      // Success! Redirect to the private page after a short delay
       setTimeout(() => {
         router.push('/private');
-        router.refresh(); // Refresh to update session flags
+        router.refresh();
       }, 500);
 
     } catch (err: any) {
