@@ -17,11 +17,19 @@ export default function ManageDevices() {
   const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsDeviceManagement, setNeedsDeviceManagement] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     async function fetchDevices() {
       try {
+        // Check if user was redirected here due to device limit
+        const flagsRes = await fetch('/api/session-flags');
+        if (flagsRes.ok) {
+          const flags = await flagsRes.json();
+          setNeedsDeviceManagement(flags.needsDeviceManagement || false);
+        }
+
         const res = await fetch('/api/devices/list');
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
@@ -99,23 +107,34 @@ export default function ManageDevices() {
   const parseUserAgent = (userAgent: string) => {
     try {
       const ua = userAgent.toLowerCase();
-      
-      // Check for specific browsers first (order matters)
-      if (ua.includes('edg/') || ua.includes('edgios/')) return 'Microsoft Edge';
-      if (ua.includes('opr/') || ua.includes('opera/')) return 'Opera';
-      if (ua.includes('firefox/')) return 'Firefox';
-      if (ua.includes('safari/') && !ua.includes('chrome/') && !ua.includes('chromium/')) return 'Safari';
-      if (ua.includes('chrome/') && !ua.includes('edg/')) return 'Chrome';
-      if (ua.includes('brave')) return 'Brave';
-      if (ua.includes('samsungbrowser/')) return 'Samsung Internet';
-      
-      // Try to extract browser name from user agent
+
+      // Browser detection (order matters)
+      let browser = 'Unknown Browser';
+      if (ua.includes('edg/') || ua.includes('edgios') || ua.includes('edga') || ua.includes('edgium')) browser = 'Microsoft Edge';
+      else if (ua.includes('opr/') || ua.includes('opera/')) browser = 'Opera';
+      else if (ua.includes('firefox/') || ua.includes('fxios')) browser = 'Firefox';
+      else if ((ua.includes('safari/') || ua.includes('version/')) && !ua.includes('chrome/') && !ua.includes('chromium/') && !ua.includes('crios') && !ua.includes('fxios')) browser = 'Safari';
+      else if (ua.includes('crios') || ua.includes('chrome/') || ua.includes('chromium/')) browser = 'Chrome';
+      else if (ua.includes('brave')) browser = 'Brave';
+      else if (ua.includes('samsungbrowser/')) browser = 'Samsung Internet';
+
+      // OS detection to provide more helpful device labels
+      let os = '';
+      if (ua.includes('windows nt') || ua.includes('windows')) os = 'Windows';
+      else if (ua.includes('macintosh') || ua.includes('mac os x')) os = 'macOS';
+      else if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) os = 'iOS';
+      else if (ua.includes('android')) os = 'Android';
+      else if (ua.includes('linux')) os = 'Linux';
+
+      if (os) return `${browser} on ${os}`;
+
+      // Fallback: try to extract a token like 'Mozilla' or other name
       const match = userAgent.match(/([A-Za-z]+)\//);
       if (match && match[1]) {
         return match[1].charAt(0).toUpperCase() + match[1].slice(1);
       }
-      
-      return 'Unknown Browser';
+
+      return browser;
     } catch {
       return 'Unknown Browser';
     }
@@ -148,6 +167,25 @@ export default function ManageDevices() {
           )}
         </p>
       </div>
+
+      {needsDeviceManagement && isAtLimit && (
+        <div className="mb-6 p-4 bg-yellow-900/30 border border-yellow-700 text-yellow-100 rounded-xl">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <div className="h-6 w-6 rounded-full bg-yellow-600 flex items-center justify-center">
+                <span className="text-white text-sm font-bold">!</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold mb-1">Device Limit Reached</p>
+              <p className="text-sm text-yellow-200">
+                You tried to log in from a new device, but you&apos;ve reached the maximum of {maxDevices} active devices. 
+                Please choose one of the devices below to log out, then you can complete your login.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       
       {error && (
         <div className="my-6 p-4 bg-red-900/30 border border-red-700 text-red-100 rounded-xl flex items-center gap-3">
